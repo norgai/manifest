@@ -98,10 +98,19 @@ export class ProviderKeyService {
       if (await this.isModelAvailable(agentId, assignment.override_model)) {
         return assignment.override_model;
       }
+      // NOR-682: distinguish "model genuinely unavailable" from the
+      // discovery-cache-cold restart window. When pricing/discovery are still
+      // hydrating, isModelAvailable returns false even for models that ARE
+      // valid — surface this so operators can spot the bad-state silently
+      // routing to auto_assigned_model (typically a free non-tool-capable
+      // model on Pattern A VMs).
+      const pricingKnown = this.pricingCache.getByModel(assignment.override_model) !== undefined;
       this.logger.warn(
         `Override ${assignment.override_model} falling through to auto ` +
           `for agent=${agentId} tier=${assignment.tier} ` +
-          `(auto=${assignment.auto_assigned_model})`,
+          `(auto=${assignment.auto_assigned_model}, ` +
+          `override_provider=${assignment.override_provider ?? 'null'}, ` +
+          `pricing_cache_has_model=${pricingKnown})`,
       );
     }
 
