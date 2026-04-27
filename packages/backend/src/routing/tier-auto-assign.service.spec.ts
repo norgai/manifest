@@ -820,5 +820,104 @@ describe('TierAutoAssignService', () => {
         expect(record.auto_assigned_model).toBe('claude-sonnet-4');
       }
     });
+
+    // ── NOR-682 regression: tier overrides must survive recalculation ──
+    //
+    // On 2026-04-23 a Selleys VM lost its tier_assignments.override_model
+    // values for `simple` and `standard` after an OpenRouter key rotation
+    // (`POST /api/v1/routing/{agent}/providers`). The POST handler calls
+    // recalculate() — this test locks the contract that recalculate ONLY
+    // touches `auto_assigned_model` and never mutates the override columns.
+    // If a future change ever causes recalculate to clear overrides, this
+    // test fails loudly.
+    it('NOR-682: must not mutate override_model/override_provider/override_auth_type for existing tiers', async () => {
+      const cheapFreeModel = makeModel({
+        id: 'inclusionai/ling-2.6-flash:free',
+        provider: 'OpenRouter',
+        inputPricePerToken: 0,
+        outputPricePerToken: 0,
+        qualityScore: 1,
+        authType: 'api_key',
+      });
+      mockDiscoveryService.getModelsForAgent.mockResolvedValue([cheapFreeModel]);
+
+      // Pre-existing tiers with operator-set overrides (mirrors the canonical
+      // Selleys seed: simple=gemini-flash, standard=haiku, both via openrouter).
+      const existingTiers = [
+        {
+          id: 'tier-simple',
+          agent_id: 'agent-1',
+          tier: 'simple',
+          override_model: 'google/gemini-2.5-flash-preview',
+          override_provider: 'openrouter',
+          override_auth_type: 'api_key',
+          auto_assigned_model: null,
+          updated_at: '2024-01-01',
+        },
+        {
+          id: 'tier-standard',
+          agent_id: 'agent-1',
+          tier: 'standard',
+          override_model: 'anthropic/claude-haiku-4.5',
+          override_provider: 'openrouter',
+          override_auth_type: 'api_key',
+          auto_assigned_model: null,
+          updated_at: '2024-01-01',
+        },
+        {
+          id: 'tier-complex',
+          agent_id: 'agent-1',
+          tier: 'complex',
+          override_model: 'anthropic/claude-sonnet-4.6',
+          override_provider: 'openrouter',
+          override_auth_type: 'api_key',
+          auto_assigned_model: null,
+          updated_at: '2024-01-01',
+        },
+        {
+          id: 'tier-reasoning',
+          agent_id: 'agent-1',
+          tier: 'reasoning',
+          override_model: 'anthropic/claude-opus-4.6',
+          override_provider: 'openrouter',
+          override_auth_type: 'api_key',
+          auto_assigned_model: null,
+          updated_at: '2024-01-01',
+        },
+      ];
+      mockTierRepo.find.mockResolvedValue(existingTiers);
+
+      await service.recalculate('agent-1');
+
+      expect(mockTierRepo.save).toHaveBeenCalledTimes(1);
+      expect(mockTierRepo.insert).not.toHaveBeenCalled();
+
+      const saved = mockTierRepo.save.mock.calls[0][0] as Array<{
+        tier: string;
+        override_model: string | null;
+        override_provider: string | null;
+        override_auth_type: string | null;
+        auto_assigned_model: string | null;
+      }>;
+      expect(saved).toHaveLength(4);
+
+      // Every override field must be unchanged.
+      const byTier = new Map(saved.map((row) => [row.tier, row]));
+      const expectedOverrides: Record<string, string> = {
+        simple: 'google/gemini-2.5-flash-preview',
+        standard: 'anthropic/claude-haiku-4.5',
+        complex: 'anthropic/claude-sonnet-4.6',
+        reasoning: 'anthropic/claude-opus-4.6',
+      };
+      for (const [tier, expectedModel] of Object.entries(expectedOverrides)) {
+        const row = byTier.get(tier);
+        expect(row).toBeDefined();
+        expect(row!.override_model).toBe(expectedModel);
+        expect(row!.override_provider).toBe('openrouter');
+        expect(row!.override_auth_type).toBe('api_key');
+        // auto_assigned_model is allowed (and expected) to update.
+        expect(row!.auto_assigned_model).toBe('inclusionai/ling-2.6-flash:free');
+      }
+    });
   });
 });
