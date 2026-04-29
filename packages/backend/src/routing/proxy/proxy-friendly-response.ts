@@ -8,6 +8,8 @@ export interface FriendlyForward {
   isGoogle: false;
   isAnthropic: false;
   isChatGpt: false;
+  isKimi: false;
+  knownTools: string[];
 }
 
 export interface FriendlyResult {
@@ -70,6 +72,8 @@ export function buildFriendlyResponse(
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta,
     };
@@ -99,6 +103,8 @@ export function buildFriendlyResponse(
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     },
     meta,
   };

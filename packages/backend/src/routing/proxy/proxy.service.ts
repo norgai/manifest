@@ -214,6 +214,8 @@ export class ProxyService {
             isGoogle: forward.isGoogle,
             isAnthropic: forward.isAnthropic,
             isChatGpt: forward.isChatGpt,
+            isKimi: forward.isKimi,
+            knownTools: forward.knownTools,
           },
           meta: {
             tier: resolved.tier as Tier,

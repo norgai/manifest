@@ -210,6 +210,13 @@ export async function handleStreamResponse(
       providerClient.convertChatGptStreamChunk(chunk, meta.model),
     );
   }
+  if (forward.isKimi) {
+    return pipeStream(
+      forward.response.body!,
+      res,
+      providerClient.createKimiStreamTransformer(meta.model, forward.knownTools),
+    );
+  }
   return pipeStream(forward.response.body!, res);
 }
 
@@ -246,6 +253,9 @@ export async function handleNonStreamResponse(
     // Consume the SSE text and build a non-streaming response.
     const sseText = await forward.response.text();
     responseBody = providerClient.collectChatGptSseResponse(sseText, meta.model);
+  } else if (forward.isKimi) {
+    const openaiData = (await forward.response.json()) as Record<string, unknown>;
+    responseBody = providerClient.convertKimiResponse(openaiData, meta.model, forward.knownTools);
   } else {
     responseBody = await forward.response.json();
   }

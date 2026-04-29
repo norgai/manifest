@@ -154,6 +154,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -303,6 +305,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -393,6 +397,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -427,6 +433,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -464,6 +472,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -563,6 +573,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -596,6 +608,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'standard',
@@ -752,6 +766,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -786,6 +802,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',
@@ -820,6 +838,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: { tier: 'simple', model: 'gpt-4o', provider: 'OpenAI', confidence: 0.9 },
       });
@@ -935,6 +955,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -978,6 +1000,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1016,6 +1040,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'complex',
@@ -1055,6 +1081,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1203,6 +1231,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1241,6 +1271,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1273,6 +1305,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: { tier: 'simple', model: 'gpt-4o', provider: 'OpenAI', confidence: 0.9 },
       });
@@ -1292,6 +1326,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: { tier: 'simple', model: 'gpt-4o', provider: 'OpenAI', confidence: 0.9 },
       });
@@ -1457,6 +1493,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: { tier: 'standard', model: 'gpt-4o', provider: 'OpenAI', confidence: 0.8 },
       });
@@ -1491,6 +1529,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: { tier: 'standard', model: 'gpt-4o', provider: 'OpenAI', confidence: 0.8 },
       });
@@ -1520,6 +1560,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: { tier: 'standard', model: 'gpt-4o', provider: 'OpenAI', confidence: 0.8 },
       });
@@ -1642,6 +1684,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1716,6 +1760,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: { tier: 'simple' as const, model: 'gpt-4o', provider: 'OpenAI', confidence: 0.9 },
     });
@@ -1798,6 +1844,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1833,6 +1881,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1879,6 +1929,8 @@ describe('ProxyController', () => {
           isGoogle: true,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1959,6 +2011,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -1996,6 +2050,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -2031,6 +2087,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -2063,6 +2121,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2124,6 +2184,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2194,6 +2256,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -2233,6 +2297,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'standard',
@@ -2271,6 +2337,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2336,6 +2404,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2388,6 +2458,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2428,6 +2500,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2473,6 +2547,8 @@ describe('ProxyController', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         },
         meta: {
           tier: 'simple',
@@ -2542,6 +2618,8 @@ describe('ProxyController', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       },
       meta: {
         tier: 'simple',

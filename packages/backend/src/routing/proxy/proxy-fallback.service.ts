@@ -203,6 +203,8 @@ export class ProxyFallbackService {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       };
     }
   }
