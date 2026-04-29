@@ -163,11 +163,17 @@ export function reconstructFunctionName(
 }
 
 /**
- * Parse the body of one envelope (everything between `<|tool_call_begin|>`
- * and either `<|tool_call_end|>` or end-of-input). Tolerates defects 1, 2,
- * and 3 described in the file header.
+ * Parse one tool-call segment (`[name][:id][{json}]`, with or without an
+ * `<|tool_call_argument_begin|>` separator between name and args). Tolerates
+ * the structural defects described in the file header. Returns null when
+ * the segment is empty or has neither a name token nor JSON args (e.g. an
+ * empty `<|tool_call_begin|><|tool_call_end|>` sentinel pair).
  */
-function parseSegment(segmentBody: string, hasEnd: boolean, knownTools: string[]): KimiToolCall {
+function parseSegment(
+  segmentBody: string,
+  isComplete: boolean,
+  knownTools: string[],
+): KimiToolCall | null {
   const argBeginIdx = segmentBody.indexOf(ARG_BEGIN);
   const firstBraceIdx = findUnquotedBraceStart(segmentBody);
 
@@ -195,9 +201,17 @@ function parseSegment(segmentBody: string, hasEnd: boolean, knownTools: string[]
   nameToken = nameToken.trim();
   argsRaw = argsRaw.trim();
 
-  // Defect #2: tolerant JSON parsing. Truncated mid-args → empty object + flag.
+  // Skip empty segments — Chutes emits a leading <|begin|><|end|> sentinel
+  // pair before the actual call list which would otherwise produce a
+  // bogus name="unknown" call.
+  if (!nameToken && !argsRaw) return null;
+
+  // Truncation is determined by whether the args were successfully parsed,
+  // not by the presence of an outer terminator. A call with name+args is
+  // complete even if the section terminator never arrived; a call with
+  // only a name (no JSON brace) is truncated regardless.
   let args: unknown = {};
-  let truncated = !hasEnd;
+  let truncated = false;
   if (argsRaw.startsWith('{')) {
     const balanced = balancedJsonExtract(argsRaw);
     if (balanced) {
@@ -208,7 +222,13 @@ function parseSegment(segmentBody: string, hasEnd: boolean, knownTools: string[]
     }
   } else if (argsRaw) {
     args = safeJsonParse(argsRaw);
+  } else {
+    // Name only, no args at all.
+    truncated = true;
   }
+  // If the parser was told the segment is incomplete (no terminator) AND we
+  // didn't get usable args, surface as truncated.
+  if (!isComplete && truncated === false && !argsRaw) truncated = true;
 
   // Defect #3: reconstruct mangled function name.
   const reconstructed = reconstructFunctionName(nameToken, knownTools);
@@ -218,7 +238,6 @@ function parseSegment(segmentBody: string, hasEnd: boolean, knownTools: string[]
     name = `${reconstructed.namespace}.${reconstructed.name}`;
     callId = reconstructed.callId ?? `kimi_${randomUUID().slice(0, 8)}`;
   } else {
-    // Pass through raw token; runtime will fail with a clear "tool not found".
     name = nameToken || 'unknown';
     callId = `kimi_${randomUUID().slice(0, 8)}`;
   }
@@ -227,30 +246,80 @@ function parseSegment(segmentBody: string, hasEnd: boolean, knownTools: string[]
 }
 
 /**
- * Extract all Kimi tool-call envelopes from `text`. Returns the structured
- * calls plus the input with envelopes (and the surrounding delimiter
- * tokens) removed. Idempotent for inputs without any `<|tool_call_begin|>`.
+ * Locate the first occurrence of any Kimi delimiter in `text`. Returns the
+ * index plus which delimiter matched, or null when none are present.
+ */
+function findFirstDelimiter(text: string, fromIndex = 0): { index: number; token: string } | null {
+  let bestIdx = -1;
+  let bestToken = '';
+  for (const token of [BEGIN, ARG_BEGIN, END]) {
+    const idx = text.indexOf(token, fromIndex);
+    if (idx >= 0 && (bestIdx < 0 || idx < bestIdx)) {
+      bestIdx = idx;
+      bestToken = token;
+    }
+  }
+  return bestIdx < 0 ? null : { index: bestIdx, token: bestToken };
+}
+
+/**
+ * Extract all Kimi tool-call envelopes from `text`.
+ *
+ * Two on-the-wire shapes are accepted:
+ *   - **Canonical**: `<|tool_call_begin|> name <|tool_call_argument_begin|>
+ *     {json} <|tool_call_end|>` — one call per BEGIN/END envelope, with
+ *     `<|tool_call_argument_begin|>` separating name from args.
+ *   - **Chutes / OpenRouter**: a leading `<|tool_call_begin|><|tool_call_end|>`
+ *     sentinel pair, followed by bare `name{json}<|tool_call_end|>` per
+ *     call, terminated by a final `<|tool_call_argument_begin|>` (or
+ *     end-of-buffer on truncation).
+ *
+ * The parser uses `<|tool_call_end|>` as the primary call terminator.
+ * `<|tool_call_argument_begin|>` is a within-call separator in canonical
+ * shape and a section terminator in Chutes shape. `<|tool_call_begin|>`
+ * is treated as a section opener and never terminates a call.
+ *
+ * Returns the structured calls plus `text` with all envelope content (and
+ * their delimiters) removed. Idempotent for inputs without delimiters.
  */
 export function parseKimiToolCallEnvelope(text: string, knownTools: string[] = []): ParsedEnvelope {
-  if (!text.includes(BEGIN)) return { calls: [], cleanText: text };
+  const firstDelim = findFirstDelimiter(text);
+  if (!firstDelim) return { calls: [], cleanText: text };
 
+  const cleanText = text.slice(0, firstDelim.index);
   const calls: KimiToolCall[] = [];
-  let cleanText = '';
-  let cursor = 0;
+
+  // Skip leading BEGIN tokens (canonical envelope opener / Chutes sentinel).
+  let cursor = firstDelim.index;
+  while (text.startsWith(BEGIN, cursor)) cursor += BEGIN.length;
 
   while (cursor < text.length) {
-    const beginIdx = text.indexOf(BEGIN, cursor);
-    if (beginIdx < 0) {
-      cleanText += text.slice(cursor);
-      break;
+    // Each call ends at the next `<|tool_call_end|>`, the trailing
+    // `<|tool_call_argument_begin|>` section terminator, or end-of-buffer.
+    const endIdx = text.indexOf(END, cursor);
+    let segmentEnd: number;
+    let isComplete: boolean;
+
+    if (endIdx >= 0) {
+      segmentEnd = endIdx;
+      isComplete = true;
+    } else {
+      // No END remains. Strip a trailing ARG_BEGIN section terminator if
+      // present and treat the section as complete; otherwise treat as
+      // truncated.
+      const argEndsSection = text.endsWith(ARG_BEGIN);
+      segmentEnd = argEndsSection ? text.length - ARG_BEGIN.length : text.length;
+      isComplete = argEndsSection;
     }
-    cleanText += text.slice(cursor, beginIdx);
-    const segmentStart = beginIdx + BEGIN.length;
-    const endIdx = text.indexOf(END, segmentStart);
-    const hasEnd = endIdx >= 0;
-    const segmentBody = hasEnd ? text.slice(segmentStart, endIdx) : text.slice(segmentStart);
-    calls.push(parseSegment(segmentBody, hasEnd, knownTools));
-    cursor = hasEnd ? endIdx + END.length : text.length;
+
+    const segmentBody = text.slice(cursor, segmentEnd);
+    const call = parseSegment(segmentBody, isComplete, knownTools);
+    if (call) calls.push(call);
+
+    if (endIdx < 0) break;
+    cursor = endIdx + END.length;
+    // Skip any consecutive BEGIN tokens (defensive: nested sentinels).
+    while (text.startsWith(BEGIN, cursor)) cursor += BEGIN.length;
   }
 
   return { calls, cleanText };
@@ -286,37 +355,62 @@ interface DrainResult {
 }
 
 /**
- * Drain a streaming buffer up to the last safe boundary. Anything before a
- * complete envelope or before a known-clean text region is emitted; a
- * partial-delimiter suffix or an unfinished envelope is held back as
- * `remaining` for the next chunk to complete.
+ * Locate the LAST occurrence of any Kimi delimiter in `text`. Returns the
+ * index of the delimiter plus its end (start + token length), or null if
+ * no delimiters are present.
+ */
+function findLastDelimiter(text: string): { start: number; end: number } | null {
+  let bestStart = -1;
+  let bestEnd = -1;
+  for (const token of [BEGIN, ARG_BEGIN, END]) {
+    const idx = text.lastIndexOf(token);
+    if (idx > bestStart) {
+      bestStart = idx;
+      bestEnd = idx + token.length;
+    }
+  }
+  return bestStart < 0 ? null : { start: bestStart, end: bestEnd };
+}
+
+/**
+ * Drain a streaming buffer up to the last safe boundary.
+ *
+ *   • Plain text before the first delimiter is emitted as `cleanText`.
+ *   • Any tail that could be a partial delimiter (`<|tool_ca` straddling a
+ *     chunk boundary) is held back.
+ *   • Once a delimiter is seen, the region between the first and the last
+ *     delimiter contains zero or more *complete* tool-call segments — those
+ *     parse and emit immediately.
+ *   • The text after the last delimiter is held back as the in-flight
+ *     segment, since its terminating delimiter has not yet arrived.
  */
 function drainSafeBuffer(buffer: string, knownTools: string[]): DrainResult {
-  const calls: KimiToolCall[] = [];
-  let cleanText = '';
-  let cursor = 0;
-
-  while (cursor < buffer.length) {
-    const beginIdx = buffer.indexOf(BEGIN, cursor);
-    if (beginIdx < 0) {
-      const tail = buffer.slice(cursor);
-      const partialLen = partialDelimiterSuffixLength(tail);
-      cleanText += tail.slice(0, tail.length - partialLen);
-      return { cleanText, calls, remaining: tail.slice(tail.length - partialLen) };
-    }
-    cleanText += buffer.slice(cursor, beginIdx);
-    const segmentStart = beginIdx + BEGIN.length;
-    const endIdx = buffer.indexOf(END, segmentStart);
-    if (endIdx < 0) {
-      // Envelope not closed yet — hold from the BEGIN marker onward.
-      return { cleanText, calls, remaining: buffer.slice(beginIdx) };
-    }
-    const segmentBody = buffer.slice(segmentStart, endIdx);
-    calls.push(parseSegment(segmentBody, true, knownTools));
-    cursor = endIdx + END.length;
+  const firstDelim = findFirstDelimiter(buffer);
+  if (!firstDelim) {
+    const partialLen = partialDelimiterSuffixLength(buffer);
+    return {
+      cleanText: buffer.slice(0, buffer.length - partialLen),
+      calls: [],
+      remaining: buffer.slice(buffer.length - partialLen),
+    };
   }
 
-  return { cleanText, calls, remaining: '' };
+  const cleanText = buffer.slice(0, firstDelim.index);
+  const lastDelim = findLastDelimiter(buffer)!;
+
+  // Everything between the first and last delimiter inclusive forms zero or
+  // more complete segments. After the last delimiter, the (possibly empty)
+  // tail is the in-flight segment whose terminator we haven't seen yet.
+  const completeRegion = buffer.slice(firstDelim.index, lastDelim.end);
+  const tail = buffer.slice(lastDelim.end);
+  const { calls } = parseKimiToolCallEnvelope(completeRegion, knownTools);
+
+  // Hold the trailing delimiter + any in-flight segment text so the next
+  // chunk can complete it (or a follow-up flush can finalize a truncated
+  // call). If `tail` is empty we still hold the delimiter so the next
+  // chunk knows it sits inside a tool-call region.
+  const remaining = buffer.slice(lastDelim.start);
+  return { cleanText, calls, remaining };
 }
 
 /* ── Response conversion (non-streaming) ── */
@@ -339,10 +433,11 @@ export function extractKnownToolNames(body: Record<string, unknown> | undefined)
 }
 
 /**
- * Post-process a non-streaming OpenAI ChatCompletion response. Scans every
- * choice's message content for Kimi delimiter envelopes, extracts them as
- * `tool_calls[]`, and writes back the cleaned text. No-op when no
- * envelopes are present.
+ * Post-process a non-streaming OpenAI ChatCompletion response. Scans both
+ * `message.content` and `message.reasoning` (Kimi via OpenRouter/Chutes
+ * routes the model's native output through the reasoning channel) for
+ * Kimi delimiter envelopes, extracts them as `tool_calls[]`, and writes
+ * back the cleaned text. No-op when no envelopes are present.
  */
 export function fromKimiResponse(
   resp: Record<string, unknown>,
@@ -356,15 +451,28 @@ export function fromKimiResponse(
   const newChoices = choices.map((choice) => {
     const message = choice.message as Record<string, unknown> | undefined;
     if (!message) return choice;
-    const content = message.content;
-    if (typeof content !== 'string' || !content.includes(BEGIN)) return choice;
 
-    const { calls, cleanText } = parseKimiToolCallEnvelope(content, knownTools);
-    if (calls.length === 0) return choice;
+    const fields: Array<'content' | 'reasoning'> = ['content', 'reasoning'];
+    const allCalls: KimiToolCall[] = [];
+    const cleaned: Partial<Record<'content' | 'reasoning', string | null>> = {};
+    let foundEnvelope = false;
+
+    for (const field of fields) {
+      const value = message[field];
+      if (typeof value !== 'string' || !value.includes(BEGIN)) continue;
+      const { calls, cleanText } = parseKimiToolCallEnvelope(value, knownTools);
+      if (calls.length === 0) continue;
+      foundEnvelope = true;
+      allCalls.push(...calls);
+      const trimmed = cleanText.trim();
+      cleaned[field] = trimmed.length > 0 ? trimmed : null;
+    }
+
+    if (!foundEnvelope) return choice;
     mutated = true;
 
     const existing = (message.tool_calls as Array<Record<string, unknown>>) || [];
-    const newToolCalls = calls.map((call) => ({
+    const newToolCalls = allCalls.map((call) => ({
       id: call.id,
       type: 'function',
       function: {
@@ -373,12 +481,11 @@ export function fromKimiResponse(
       },
     }));
 
-    const trimmedText = cleanText.trim();
     return {
       ...choice,
       message: {
         ...message,
-        content: trimmedText.length > 0 ? trimmedText : null,
+        ...cleaned,
         tool_calls: [...existing, ...newToolCalls],
       },
       finish_reason: 'tool_calls',
@@ -390,13 +497,15 @@ export function fromKimiResponse(
 
 /* ── Stream conversion ── */
 
-function makeContentDelta(model: string, content: string): string {
+function makeContentDelta(model: string, content: string, field: 'content' | 'reasoning'): string {
+  const delta: Record<string, string> = {};
+  delta[field] = content;
   return `data: ${JSON.stringify({
     id: `chatcmpl-${randomUUID()}`,
     object: 'chat.completion.chunk',
     created: Math.floor(Date.now() / 1000),
     model,
-    choices: [{ index: 0, delta: { content }, finish_reason: null }],
+    choices: [{ index: 0, delta, finish_reason: null }],
   })}\n\n`;
 }
 
@@ -426,121 +535,117 @@ function makeToolCallDelta(model: string, index: number, call: KimiToolCall): st
 }
 
 /**
- * Create a stateful stream transformer. For each incoming SSE chunk, returns
- * either a transformed SSE chunk or null. The transformer:
+ * Create a stateful stream transformer. Each call receives a single
+ * already-parsed SSE event payload (the JSON body of one `data: ...` line —
+ * `pipeStream` strips the `data: ` prefix and the `[DONE]` sentinel before
+ * invoking the transform). The transformer returns a raw SSE-formatted chunk
+ * (with `data: ` prefix and trailing `\n\n`) ready for the wire, or null to
+ * indicate the event was buffered and produced no output.
  *
- *   - Buffers `choices[0].delta.content` text across chunks.
- *   - Emits content deltas verbatim once we know the trailing buffer can't
- *     be the prefix of a Kimi delimiter.
- *   - When a complete envelope is buffered, emits a `tool_calls[]` delta in
- *     OpenAI streaming shape and resumes content emission for any text
- *     after the envelope.
- *   - Passes through non-content chunks (usage, role, finish_reason) as-is.
+ * Behavior:
+ *   - Buffers `choices[0].delta.content` text across events.
+ *   - Emits content deltas once the trailing buffer cannot be a partial
+ *     Kimi delimiter (held-back suffix is small — at most `<|tool_call_argument_begin|>` length).
+ *   - When a complete `<|tool_call_begin|>...<|tool_call_end|>` envelope is
+ *     buffered, emits a `tool_calls[]` delta in OpenAI streaming shape and
+ *     resumes content emission for any text after the envelope.
+ *   - Passes through non-content events (role-only, finish_reason, usage)
+ *     as-is. When `finish_reason` arrives with content still buffered, the
+ *     buffer is force-flushed first so any envelope completes before the
+ *     end-of-message signal.
  */
 export function createKimiStreamTransformer(
   model: string,
   knownTools: string[] = [],
 ): (chunk: string) => string | null {
-  let buffer = '';
+  // Separate buffers per delta field. Kimi via OpenRouter/Chutes emits its
+  // entire native output (including tool-call delimiters) through
+  // `delta.reasoning`; direct Moonshot endpoints emit through `delta.content`.
+  // Buffer each independently so envelopes that span multiple chunks within
+  // the same channel are recovered without crossing channels.
+  const buffers: Record<'content' | 'reasoning', string> = { content: '', reasoning: '' };
   let toolCallIndex = 0;
-  let pendingFinishReason: string | null = null;
 
-  const flushBuffer = (): string => {
-    if (buffer.length === 0) return '';
-    // End-of-stream: any remaining envelope is treated as truncated, any
-    // remaining text is emitted verbatim.
-    const { cleanText, calls } = parseKimiToolCallEnvelope(buffer, knownTools);
-    buffer = '';
+  const flushBuffer = (field: 'content' | 'reasoning'): string => {
+    const buf = buffers[field];
+    if (buf.length === 0) return '';
+    const { cleanText, calls } = parseKimiToolCallEnvelope(buf, knownTools);
+    buffers[field] = '';
     let out = '';
-    if (cleanText) out += makeContentDelta(model, cleanText);
+    if (cleanText) out += makeContentDelta(model, cleanText, field);
     for (const call of calls) {
       out += makeToolCallDelta(model, toolCallIndex++, call);
     }
     return out;
   };
 
-  return (chunk: string): string | null => {
-    const lines = chunk.split('\n');
+  const flushAll = (): string => flushBuffer('content') + flushBuffer('reasoning');
+
+  const processField = (field: 'content' | 'reasoning', text: string): string => {
+    buffers[field] += text;
+    const drained = drainSafeBuffer(buffers[field], knownTools);
     let out = '';
-    let consumed = false;
+    if (drained.cleanText) out += makeContentDelta(model, drained.cleanText, field);
+    for (const call of drained.calls) {
+      out += makeToolCallDelta(model, toolCallIndex++, call);
+    }
+    buffers[field] = drained.remaining;
+    return out;
+  };
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const payload = trimmed.slice(5).trim();
-      if (!payload) continue;
+  return (chunk: string): string | null => {
+    const trimmed = chunk.trim();
+    if (!trimmed) return null;
 
-      if (payload === '[DONE]') {
-        out += flushBuffer();
-        if (pendingFinishReason) {
-          // Re-emit the saved finish_reason now that all tool_calls are out.
-          out += `data: ${JSON.stringify({
-            id: `chatcmpl-${randomUUID()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model,
-            choices: [{ index: 0, delta: {}, finish_reason: pendingFinishReason }],
-          })}\n\n`;
-          pendingFinishReason = null;
-        }
-        out += 'data: [DONE]\n\n';
-        consumed = true;
-        continue;
-      }
-
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(payload);
-      } catch {
-        // Pass through unparseable lines unchanged.
-        out += `data: ${payload}\n\n`;
-        consumed = true;
-        continue;
-      }
-
-      const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
-      if (!choices || choices.length === 0) {
-        out += `data: ${JSON.stringify(parsed)}\n\n`;
-        consumed = true;
-        continue;
-      }
-
-      const choice = choices[0];
-      const delta = choice.delta as Record<string, unknown> | undefined;
-      const finishReason = choice.finish_reason as string | null | undefined;
-
-      const contentDelta = delta?.content;
-      if (typeof contentDelta === 'string' && contentDelta.length > 0) {
-        buffer += contentDelta;
-        const drained = drainSafeBuffer(buffer, knownTools);
-        if (drained.cleanText) out += makeContentDelta(model, drained.cleanText);
-        for (const call of drained.calls) {
-          out += makeToolCallDelta(model, toolCallIndex++, call);
-        }
-        buffer = drained.remaining;
-        consumed = true;
-        continue;
-      }
-
-      // Non-content delta (role-only, tool_calls already structured, etc.) —
-      // pass through, but defer finish_reason until buffer is flushed.
-      if (finishReason && buffer.length > 0) {
-        pendingFinishReason = finishReason;
-        out += flushBuffer();
-        // Re-emit the chunk without finish_reason; we'll send it after [DONE].
-        const stripped = {
-          ...parsed,
-          choices: choices.map((c) => ({ ...c, finish_reason: null })),
-        };
-        out += `data: ${JSON.stringify(stripped)}\n\n`;
-      } else {
-        out += `data: ${JSON.stringify(parsed)}\n\n`;
-      }
-      consumed = true;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      // Pass through unparseable events untouched.
+      return `data: ${trimmed}\n\n`;
     }
 
-    if (!consumed) return null;
-    return out.length > 0 ? out : null;
+    const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
+    if (!choices || choices.length === 0) {
+      return `data: ${JSON.stringify(parsed)}\n\n`;
+    }
+
+    const choice = choices[0];
+    const delta = choice.delta as Record<string, unknown> | undefined;
+    const finishReason = choice.finish_reason as string | null | undefined;
+    const contentDelta = delta?.content;
+    const reasoningDelta = delta?.reasoning;
+
+    const hasContent = typeof contentDelta === 'string' && contentDelta.length > 0;
+    const hasReasoning = typeof reasoningDelta === 'string' && reasoningDelta.length > 0;
+
+    let out = '';
+
+    if (hasContent) out += processField('content', contentDelta);
+    if (hasReasoning) out += processField('reasoning', reasoningDelta);
+
+    if (hasContent || hasReasoning) {
+      // If this event also carried a finish_reason, force-flush both buffers
+      // before re-emitting the terminal event so any held-back partial
+      // envelope surfaces before the end-of-message signal.
+      if (finishReason) {
+        out += flushAll();
+        const stripped = {
+          ...parsed,
+          choices: choices.map((c) => ({ ...c, delta: {}, finish_reason: finishReason })),
+        };
+        out += `data: ${JSON.stringify(stripped)}\n\n`;
+      }
+      return out.length > 0 ? out : null;
+    }
+
+    // Non-content event. Flush both buffers if a finish_reason is arriving so
+    // any pending envelope completes before the end-of-message signal.
+    if (finishReason && (buffers.content.length > 0 || buffers.reasoning.length > 0)) {
+      out += flushAll();
+    }
+    out += `data: ${JSON.stringify(parsed)}\n\n`;
+    return out;
   };
 }
 
