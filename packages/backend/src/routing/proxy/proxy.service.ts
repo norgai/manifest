@@ -9,6 +9,7 @@ import { ForwardResult } from './provider-client';
 import { SessionMomentumService } from './session-momentum.service';
 import { LimitCheckService } from '../../notifications/services/limit-check.service';
 import { shouldTriggerFallback } from './fallback-status-codes';
+import { classifyUpstreamError } from './error-classifier';
 import { Tier, ScorerMessage } from '../../scoring/types';
 import {
   ProxyFallbackService,
@@ -42,6 +43,12 @@ export interface RoutingMeta {
   fallbackIndex?: number;
   primaryErrorStatus?: number;
   primaryErrorBody?: string;
+  /**
+   * When set, identifies why an automatic escalation/recovery fallback fired
+   * (e.g. 'context_overflow_escalation'). Surfaced as `routing_reason` on
+   * the recorded agent_message so frequency can be monitored from the API.
+   */
+  escalationReason?: string;
 }
 
 export interface ProxyResult {
@@ -156,11 +163,49 @@ export class ProxyService {
     if (!forward.response.ok && shouldTriggerFallback(forward.response.status)) {
       const tiers = await this.tierService.getTiers(agentId);
       const assignment = tiers.find((t) => t.tier === resolved.tier);
-      const fallbackModels = assignment?.fallback_models;
+      const tierFallbackModels = assignment?.fallback_models ?? [];
 
-      if (fallbackModels && fallbackModels.length > 0) {
-        const primaryStatus = forward.response.status;
-        const primaryErrorBody = await forward.response.text();
+      // Reading the body consumes the original Response stream. We need it
+      // for both classification (escalation decision) and the fall-through
+      // return path (so downstream can re-emit the original error). Rebuild
+      // a fresh Response on `forward` so it stays readable below.
+      const primaryStatus = forward.response.status;
+      const primaryErrorBody = await forward.response.text();
+      const rebuiltHeaders = new Headers(forward.response.headers);
+      rebuiltHeaders.delete('content-encoding');
+      rebuiltHeaders.delete('content-length');
+      rebuiltHeaders.delete('transfer-encoding');
+      forward.response = new Response(primaryErrorBody, {
+        status: primaryStatus,
+        headers: rebuiltHeaders,
+      });
+
+      // Context-overflow escalation: when the upstream rejected the request
+      // because the prompt exceeded the model's context window, prepend the
+      // agent's reasoning-tier model to the fallback chain. The reasoning
+      // tier typically maps to a model with a much larger context window
+      // (e.g. Sonnet 4.6's 1M tokens vs Haiku 4.5's 200k), so the escalated
+      // call can succeed where the original could not. Skipped if we're
+      // already on the reasoning tier (escalating to ourselves is a no-op).
+      let escalationModel: string | null = null;
+      if (
+        resolved.tier !== 'reasoning' &&
+        classifyUpstreamError(primaryStatus, primaryErrorBody) === 'context_overflow'
+      ) {
+        const reasoning = await this.resolveService.resolveForTier(agentId, 'reasoning');
+        if (reasoning?.model) {
+          escalationModel = reasoning.model;
+          this.logger.log(
+            `Context overflow on tier=${resolved.tier} model=${primaryModel} — escalating to reasoning-tier model=${escalationModel}`,
+          );
+        }
+      }
+
+      const fallbackModels = escalationModel
+        ? [escalationModel, ...tierFallbackModels]
+        : tierFallbackModels;
+
+      if (fallbackModels.length > 0) {
         const { success, failures } = await this.fallbackService.tryFallbacks(
           agentId,
           userId,
@@ -176,11 +221,16 @@ export class ProxyService {
         );
 
         if (success) {
-          this.momentum.recordTier(sessionKey, resolved.tier as Tier);
+          // The escalation hop is always at fallbackIndex 0 (we prepended it)
+          const isEscalationHit = escalationModel !== null && success.fallbackIndex === 0;
+          this.momentum.recordTier(
+            sessionKey,
+            (isEscalationHit ? 'reasoning' : resolved.tier) as Tier,
+          );
           return {
             forward: success.forward,
             meta: {
-              tier: resolved.tier as Tier,
+              tier: (isEscalationHit ? 'reasoning' : resolved.tier) as Tier,
               model: success.model,
               provider: success.provider,
               confidence: resolved.confidence,
@@ -190,6 +240,7 @@ export class ProxyService {
               fallbackIndex: success.fallbackIndex,
               primaryErrorStatus: primaryStatus,
               primaryErrorBody: primaryErrorBody,
+              escalationReason: isEscalationHit ? 'context_overflow_escalation' : undefined,
             },
             failedFallbacks: failures,
           };
