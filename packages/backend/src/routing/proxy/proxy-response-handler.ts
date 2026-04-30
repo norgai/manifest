@@ -287,6 +287,7 @@ export function recordSuccess(
         timestamp: fallbackSuccessTs,
         authType: meta.auth_type,
         usage: streamUsage ?? undefined,
+        reason: meta.escalationReason,
       })
       .catch((e) => logger.warn(`Failed to record fallback success: ${e}`));
   } else {

@@ -27,6 +27,12 @@ export interface FallbackSuccessOpts {
   timestamp?: string;
   authType?: string;
   usage?: StreamUsage;
+  /**
+   * When set, recorded as `routing_reason`. Used to mark targeted recovery
+   * fallbacks (e.g. 'context_overflow_escalation') so they're queryable
+   * separately from generic tier-fallback hops.
+   */
+  reason?: string;
 }
 
 export interface SuccessMessageOpts {
@@ -194,7 +200,8 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
     tier: string,
     opts?: FallbackSuccessOpts,
   ): Promise<void> {
-    const { traceId, fallbackFromModel, fallbackIndex, timestamp, authType, usage } = opts ?? {};
+    const { traceId, fallbackFromModel, fallbackIndex, timestamp, authType, usage, reason } =
+      opts ?? {};
 
     const inputTokens = usage?.prompt_tokens ?? 0;
     const outputTokens = usage?.completion_tokens ?? 0;
@@ -221,6 +228,7 @@ export class ProxyMessageRecorder implements OnModuleDestroy {
       agent_name: ctx.agentName,
       model,
       routing_tier: tier,
+      routing_reason: reason ?? null,
       input_tokens: inputTokens,
       output_tokens: outputTokens,
       cache_read_tokens: usage?.cache_read_tokens ?? 0,

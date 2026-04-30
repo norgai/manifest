@@ -35,6 +35,7 @@ describe('ProxyService', () => {
   beforeEach(() => {
     resolveService = {
       resolve: jest.fn(),
+      resolveForTier: jest.fn(),
     } as unknown as jest.Mocked<ResolveService>;
 
     providerKeyService = {
@@ -2800,6 +2801,226 @@ describe('ProxyService', () => {
       // Status is the primary provider's actual error (429), not a synthetic 424
       expect(result.forward.response.status).toBe(429);
       expect(result.failedFallbacks).toHaveLength(2);
+    });
+  });
+
+  describe('context-overflow escalation to reasoning tier', () => {
+    const overflowBody = JSON.stringify({
+      error: {
+        message: 'Provider returned error',
+        code: 400,
+        metadata: {
+          raw: '{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 207001 tokens > 200000 maximum"}}',
+        },
+      },
+    });
+
+    it('prepends reasoning-tier model when overflow on a non-reasoning tier', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        model: 'claude-haiku-4.5',
+        provider: 'Anthropic',
+        confidence: 0.8,
+        score: 0.1,
+        reason: 'scored',
+      });
+      resolveService.resolveForTier.mockResolvedValue({
+        tier: 'reasoning',
+        model: 'claude-sonnet-4.6',
+        provider: 'Anthropic',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      providerKeyService.getProviderApiKey
+        .mockResolvedValueOnce('sk-ant')
+        .mockResolvedValueOnce('sk-ant');
+      providerClient.forward
+        .mockResolvedValueOnce({
+          response: new Response(overflowBody, { status: 400 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        })
+        .mockResolvedValueOnce({
+          response: new Response('{}', { status: 200 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        });
+      tierService.getTiers.mockResolvedValue([{ tier: 'standard', fallback_models: [] }] as never);
+      pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
+
+      const result = await service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body,
+        sessionKey: 'default',
+      });
+
+      expect(resolveService.resolveForTier).toHaveBeenCalledWith('agent-1', 'reasoning');
+      expect(result.meta.model).toBe('claude-sonnet-4-6');
+      expect(result.meta.tier).toBe('reasoning');
+      expect(result.meta.fallbackFromModel).toBe('claude-haiku-4-5');
+      expect(result.meta.fallbackIndex).toBe(0);
+      expect(result.meta.escalationReason).toBe('context_overflow_escalation');
+    });
+
+    it('does not escalate when error is not a context-overflow', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        model: 'claude-haiku-4.5',
+        provider: 'Anthropic',
+        confidence: 0.8,
+        score: 0.1,
+        reason: 'scored',
+      });
+      providerKeyService.getProviderApiKey.mockResolvedValueOnce('sk-ant');
+      providerClient.forward.mockResolvedValueOnce({
+        response: new Response('{"error":"rate_limit"}', { status: 429 }),
+        isGoogle: false,
+        isAnthropic: true,
+        isChatGpt: false,
+      });
+      tierService.getTiers.mockResolvedValue([{ tier: 'standard', fallback_models: [] }] as never);
+
+      const result = await service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body,
+        sessionKey: 'default',
+      });
+
+      expect(resolveService.resolveForTier).not.toHaveBeenCalled();
+      expect(result.meta.escalationReason).toBeUndefined();
+      expect(result.meta.tier).toBe('standard');
+    });
+
+    it('does not escalate when already on reasoning tier', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'reasoning',
+        model: 'claude-sonnet-4.6',
+        provider: 'Anthropic',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      providerKeyService.getProviderApiKey.mockResolvedValueOnce('sk-ant');
+      providerClient.forward.mockResolvedValueOnce({
+        response: new Response(overflowBody, { status: 400 }),
+        isGoogle: false,
+        isAnthropic: true,
+        isChatGpt: false,
+      });
+      tierService.getTiers.mockResolvedValue([{ tier: 'reasoning', fallback_models: [] }] as never);
+
+      const result = await service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body,
+        sessionKey: 'default',
+      });
+
+      expect(resolveService.resolveForTier).not.toHaveBeenCalled();
+      expect(result.meta.escalationReason).toBeUndefined();
+      expect(result.meta.tier).toBe('reasoning');
+      // Should fall through with the original error (no fallbacks configured)
+      expect(result.forward.response.status).toBe(400);
+    });
+
+    it('falls through when reasoning tier has no configured model', async () => {
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        model: 'claude-haiku-4.5',
+        provider: 'Anthropic',
+        confidence: 0.8,
+        score: 0.1,
+        reason: 'scored',
+      });
+      resolveService.resolveForTier.mockResolvedValue({
+        tier: 'reasoning',
+        model: null,
+        provider: null,
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      providerKeyService.getProviderApiKey.mockResolvedValueOnce('sk-ant');
+      providerClient.forward.mockResolvedValueOnce({
+        response: new Response(overflowBody, { status: 400 }),
+        isGoogle: false,
+        isAnthropic: true,
+        isChatGpt: false,
+      });
+      tierService.getTiers.mockResolvedValue([{ tier: 'standard', fallback_models: [] }] as never);
+
+      const result = await service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body,
+        sessionKey: 'default',
+      });
+
+      expect(resolveService.resolveForTier).toHaveBeenCalledWith('agent-1', 'reasoning');
+      expect(result.meta.escalationReason).toBeUndefined();
+      // Original error preserved on the response
+      expect(result.forward.response.status).toBe(400);
+    });
+
+    it('escalation hop succeeds AHEAD of configured tier fallbacks', async () => {
+      // Verify escalation jumps the queue: even if there are tier fallbacks,
+      // the reasoning model gets first crack on context overflow.
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        model: 'claude-haiku-4.5',
+        provider: 'Anthropic',
+        confidence: 0.8,
+        score: 0.1,
+        reason: 'scored',
+      });
+      resolveService.resolveForTier.mockResolvedValue({
+        tier: 'reasoning',
+        model: 'claude-sonnet-4.6',
+        provider: 'Anthropic',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      providerKeyService.getProviderApiKey
+        .mockResolvedValueOnce('sk-ant')
+        .mockResolvedValueOnce('sk-ant');
+      providerClient.forward
+        .mockResolvedValueOnce({
+          response: new Response(overflowBody, { status: 400 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        })
+        .mockResolvedValueOnce({
+          response: new Response('{}', { status: 200 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        });
+      tierService.getTiers.mockResolvedValue([
+        // Tier has its own fallbacks, but escalation should fire first
+        { tier: 'standard', fallback_models: ['deepseek-chat', 'gemini-2.5-pro'] },
+      ] as never);
+      pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
+
+      const result = await service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body,
+        sessionKey: 'default',
+      });
+
+      // Escalation model wins over the configured fallbacks
+      expect(result.meta.model).toBe('claude-sonnet-4-6');
+      expect(result.meta.fallbackIndex).toBe(0);
+      expect(result.meta.escalationReason).toBe('context_overflow_escalation');
+      // Only 2 forwards: primary + escalation (didn't reach the tier fallbacks)
+      expect(providerClient.forward).toHaveBeenCalledTimes(2);
     });
   });
 
