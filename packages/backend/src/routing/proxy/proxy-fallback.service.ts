@@ -35,6 +35,15 @@ export interface FailedFallback {
   errorBody: string;
 }
 
+/**
+ * Fallback chain entry. A bare string falls back to provider inference
+ * (custom-prefix → model-name prefix → pricing cache → connected providers).
+ * An object lets the caller pin the provider directly — used by context-overflow
+ * escalation, where `resolveForTier` already produced an authoritative
+ * (model, provider) pair that must not be re-inferred.
+ */
+export type FallbackEntry = string | { model: string; provider: string };
+
 @Injectable()
 export class ProxyFallbackService {
   private readonly logger = new Logger(ProxyFallbackService.name);
@@ -53,7 +62,7 @@ export class ProxyFallbackService {
   async tryFallbacks(
     agentId: string,
     userId: string,
-    fallbackModels: string[],
+    fallbackModels: ReadonlyArray<FallbackEntry>,
     body: Record<string, unknown>,
     stream: boolean,
     sessionKey: string,
@@ -81,12 +90,19 @@ export class ProxyFallbackService {
     }
 
     for (let i = 0; i < fallbackModels.length; i++) {
-      const requestedModel = fallbackModels[i];
+      const entry = fallbackModels[i];
+      const requestedModel = typeof entry === 'string' ? entry : entry.model;
+      const pinnedProvider = typeof entry === 'string' ? undefined : entry.provider;
       const pricing = this.pricingCache.getByModel(requestedModel);
 
-      // Determine provider: custom prefix -> model name inference -> pricing cache -> user's connected providers
+      // Determine provider. When the caller pinned one (e.g. context-overflow
+      // escalation, where resolveForTier already produced an authoritative
+      // pair), honour it verbatim; otherwise infer:
+      // custom prefix -> model name inference -> pricing cache -> user's connected providers.
       let provider: string | undefined;
-      if (CustomProviderService.isCustom(requestedModel)) {
+      if (pinnedProvider) {
+        provider = pinnedProvider;
+      } else if (CustomProviderService.isCustom(requestedModel)) {
         const slashIdx = requestedModel.indexOf('/');
         provider = slashIdx > 0 ? requestedModel.substring(0, slashIdx) : requestedModel;
       } else {

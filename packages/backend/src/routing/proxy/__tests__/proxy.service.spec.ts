@@ -3022,6 +3022,64 @@ describe('ProxyService', () => {
       // Only 2 forwards: primary + escalation (didn't reach the tier fallbacks)
       expect(providerClient.forward).toHaveBeenCalledTimes(2);
     });
+
+    it('escalation hop honours the resolveForTier provider verbatim (no re-inference)', async () => {
+      // Selleys-shaped config: standard tier on Anthropic OAuth (subscription),
+      // reasoning tier configured via OpenRouter. Without the pinned-provider
+      // path, fallback inference would pick 'anthropic' (because the agent has
+      // an active Anthropic provider) and skip the entry for "no API key".
+      resolveService.resolve.mockResolvedValue({
+        tier: 'standard',
+        model: '~anthropic/claude-haiku-latest',
+        provider: 'openrouter',
+        confidence: 0.8,
+        score: 0.1,
+        reason: 'scored',
+      });
+      resolveService.resolveForTier.mockResolvedValue({
+        tier: 'reasoning',
+        model: 'anthropic/claude-sonnet-4.6',
+        provider: 'openrouter',
+        confidence: 1,
+        score: 0,
+        reason: 'scored',
+      });
+      // Both providers are "active" for the agent — this is the trap the old
+      // code fell into. With pinning, only the openrouter key should be asked for.
+      providerKeyService.hasActiveProvider = jest.fn().mockResolvedValue(true);
+      providerKeyService.getProviderApiKey
+        .mockResolvedValueOnce('or-key') // primary
+        .mockImplementationOnce(async (_agent, provider) => {
+          // Escalation hop must request the openrouter key, never anthropic.
+          if (provider !== 'openrouter') return null;
+          return 'or-key';
+        });
+      providerClient.forward
+        .mockResolvedValueOnce({
+          response: new Response(overflowBody, { status: 400 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        })
+        .mockResolvedValueOnce({
+          response: new Response('{}', { status: 200 }),
+          isGoogle: false,
+          isAnthropic: true,
+          isChatGpt: false,
+        });
+      tierService.getTiers.mockResolvedValue([{ tier: 'standard', fallback_models: [] }] as never);
+
+      const result = await service.proxyRequest({
+        agentId: 'agent-1',
+        userId: 'user-1',
+        body,
+        sessionKey: 'default',
+      });
+
+      expect(result.meta.provider).toBe('openrouter');
+      expect(result.meta.escalationReason).toBe('context_overflow_escalation');
+      expect(providerClient.forward).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('auth type fallback for same provider (#1272)', () => {

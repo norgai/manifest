@@ -187,23 +187,23 @@ export class ProxyService {
       // (e.g. Sonnet 4.6's 1M tokens vs Haiku 4.5's 200k), so the escalated
       // call can succeed where the original could not. Skipped if we're
       // already on the reasoning tier (escalating to ourselves is a no-op).
-      let escalationModel: string | null = null;
+      let escalationEntry: { model: string; provider: string } | null = null;
       if (
         resolved.tier !== 'reasoning' &&
         classifyUpstreamError(primaryStatus, primaryErrorBody) === 'context_overflow'
       ) {
         const reasoning = await this.resolveService.resolveForTier(agentId, 'reasoning');
-        if (reasoning?.model) {
-          escalationModel = reasoning.model;
+        if (reasoning?.model && reasoning.provider) {
+          escalationEntry = { model: reasoning.model, provider: reasoning.provider };
           this.logger.log(
-            `Context overflow on tier=${resolved.tier} model=${primaryModel} — escalating to reasoning-tier model=${escalationModel}`,
+            `Context overflow on tier=${resolved.tier} model=${primaryModel} — escalating to reasoning-tier model=${reasoning.model} provider=${reasoning.provider}`,
           );
         }
       }
 
-      const fallbackModels = escalationModel
-        ? [escalationModel, ...tierFallbackModels]
-        : tierFallbackModels;
+      const fallbackModels: Array<string | { model: string; provider: string }> = escalationEntry
+        ? [escalationEntry, ...tierFallbackModels]
+        : [...tierFallbackModels];
 
       if (fallbackModels.length > 0) {
         const { success, failures } = await this.fallbackService.tryFallbacks(
@@ -222,7 +222,7 @@ export class ProxyService {
 
         if (success) {
           // The escalation hop is always at fallbackIndex 0 (we prepended it)
-          const isEscalationHit = escalationModel !== null && success.fallbackIndex === 0;
+          const isEscalationHit = escalationEntry !== null && success.fallbackIndex === 0;
           this.momentum.recordTier(
             sessionKey,
             (isEscalationHit ? 'reasoning' : resolved.tier) as Tier,
