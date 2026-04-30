@@ -17,7 +17,9 @@ describe('Anthropic Adapter', () => {
 
       expect(messages).toHaveLength(1);
       expect(messages[0].role).toBe('user');
-      expect(messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
+      expect(messages[0].content).toEqual([
+        { type: 'text', text: 'Hello', cache_control: { type: 'ephemeral' } },
+      ]);
     });
 
     it('extracts system messages into top-level system array', () => {
@@ -176,6 +178,7 @@ describe('Anthropic Adapter', () => {
         id: 'call_1',
         name: 'web_search',
         input: { query: 'cats' },
+        cache_control: { type: 'ephemeral' },
       });
     });
 
@@ -192,6 +195,7 @@ describe('Anthropic Adapter', () => {
         type: 'tool_result',
         tool_use_id: 'call_1',
         content: '{"results": ["cat1"]}',
+        cache_control: { type: 'ephemeral' },
       });
     });
 
@@ -214,7 +218,11 @@ describe('Anthropic Adapter', () => {
       const content = messages[0].content as Array<Record<string, unknown>>;
       expect(content).toHaveLength(2);
       expect(content[0]).toEqual({ type: 'text', text: 'First' });
-      expect(content[1]).toEqual({ type: 'text', text: 'Second' });
+      expect(content[1]).toEqual({
+        type: 'text',
+        text: 'Second',
+        cache_control: { type: 'ephemeral' },
+      });
     });
 
     it('handles system message with array content', () => {
@@ -414,6 +422,53 @@ describe('Anthropic Adapter', () => {
       expect(result.cache_control).toBeUndefined();
     });
 
+    it('injects cache_control on the last conversation message', () => {
+      const body = {
+        messages: [
+          { role: 'system', content: 'You are helpful.' },
+          { role: 'user', content: 'first turn' },
+          { role: 'assistant', content: 'reply' },
+          { role: 'user', content: 'second turn' },
+        ],
+      };
+      const result = toAnthropicRequest(body, 'claude-sonnet-4-20250514');
+      const msgs = result.messages as Array<{
+        role: string;
+        content: Array<{ text?: string; cache_control?: unknown }>;
+      }>;
+      expect(msgs).toHaveLength(3);
+      expect(msgs[0].content[0].cache_control).toBeUndefined();
+      expect(msgs[1].content[0].cache_control).toBeUndefined();
+      const lastBlock = msgs[2].content[msgs[2].content.length - 1];
+      expect(lastBlock.cache_control).toEqual({ type: 'ephemeral' });
+    });
+
+    it('omits cache_control from conversation history when injectCacheControl is false', () => {
+      const body = {
+        messages: [
+          { role: 'user', content: 'first' },
+          { role: 'assistant', content: 'reply' },
+          { role: 'user', content: 'second' },
+        ],
+      };
+      const result = toAnthropicRequest(body, 'claude-sonnet-4-20250514', {
+        injectCacheControl: false,
+      });
+      const msgs = result.messages as Array<{
+        content: Array<{ cache_control?: unknown }>;
+      }>;
+      for (const m of msgs) {
+        for (const block of m.content) {
+          expect(block.cache_control).toBeUndefined();
+        }
+      }
+    });
+
+    it('does not throw when messages array is empty', () => {
+      const body = { messages: [] };
+      expect(() => toAnthropicRequest(body, 'claude-sonnet-4-20250514')).not.toThrow();
+    });
+
     it('omits cache_control from tools when injectCacheControl is false', () => {
       const body = {
         messages: [{ role: 'user', content: 'Hi' }],
@@ -442,7 +497,11 @@ describe('Anthropic Adapter', () => {
         injectCacheControl: false,
         injectSubscriptionIdentity: true,
       });
-      const system = result.system as Array<{ type: string; text: string; cache_control?: unknown }>;
+      const system = result.system as Array<{
+        type: string;
+        text: string;
+        cache_control?: unknown;
+      }>;
       expect(system).toHaveLength(2);
       expect(system[0].text).toContain('Claude agent');
       expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
