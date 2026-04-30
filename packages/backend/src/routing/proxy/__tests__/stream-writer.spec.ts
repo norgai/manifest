@@ -1,4 +1,10 @@
-import { initSseHeaders, parseSseEvents, pipeStream, extractUsageFromSse } from '../stream-writer';
+import {
+  initSseHeaders,
+  parseSseEvents,
+  pipeStream,
+  extractUsageFromSse,
+  pickCacheTokens,
+} from '../stream-writer';
 
 function mockResponse(): {
   res: Record<string, jest.Mock | boolean>;
@@ -114,6 +120,45 @@ describe('parseSseEvents', () => {
     const result = parseSseEvents(input);
 
     expect(result.events).toEqual(['raw content']);
+  });
+});
+
+describe('pickCacheTokens', () => {
+  it('reads manifest-internal cache_read_tokens / cache_creation_tokens', () => {
+    expect(pickCacheTokens({ cache_read_tokens: 100, cache_creation_tokens: 50 })).toEqual({
+      cache_read_tokens: 100,
+      cache_creation_tokens: 50,
+    });
+  });
+
+  it('falls back to OpenAI prompt_tokens_details.cached_tokens', () => {
+    expect(pickCacheTokens({ prompt_tokens_details: { cached_tokens: 200 } })).toEqual({
+      cache_read_tokens: 200,
+      cache_creation_tokens: undefined,
+    });
+  });
+
+  it('falls back to Anthropic-native cache_read_input_tokens / cache_creation_input_tokens', () => {
+    expect(
+      pickCacheTokens({ cache_read_input_tokens: 300, cache_creation_input_tokens: 75 }),
+    ).toEqual({ cache_read_tokens: 300, cache_creation_tokens: 75 });
+  });
+
+  it('prefers manifest-internal fields when multiple shapes are present', () => {
+    expect(
+      pickCacheTokens({
+        cache_read_tokens: 1,
+        prompt_tokens_details: { cached_tokens: 2 },
+        cache_read_input_tokens: 3,
+      }),
+    ).toEqual({ cache_read_tokens: 1, cache_creation_tokens: undefined });
+  });
+
+  it('returns undefined fields when no cache info present', () => {
+    expect(pickCacheTokens({ prompt_tokens: 100 })).toEqual({
+      cache_read_tokens: undefined,
+      cache_creation_tokens: undefined,
+    });
   });
 });
 
