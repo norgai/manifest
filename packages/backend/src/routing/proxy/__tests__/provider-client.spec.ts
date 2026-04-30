@@ -522,7 +522,7 @@ describe('ProviderClient', () => {
   });
 
   describe('OpenRouter Anthropic cache injection', () => {
-    it('injects cache_control for anthropic/ models on openrouter', async () => {
+    it('injects 1h cache_control on system message for anthropic/ models on openrouter', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const bodyWithSystem = {
@@ -542,10 +542,10 @@ describe('ProviderClient', () => {
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       const sysMsg = sentBody.messages[0];
       expect(Array.isArray(sysMsg.content)).toBe(true);
-      expect(sysMsg.content[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(sysMsg.content[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
     });
 
-    it('injects cache_control for ~anthropic/ auto-router models on openrouter', async () => {
+    it('injects 1h cache_control on system message for ~anthropic/ auto-router models', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       const bodyWithSystem = {
@@ -565,7 +565,147 @@ describe('ProviderClient', () => {
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       const sysMsg = sentBody.messages[0];
       expect(Array.isArray(sysMsg.content)).toBe(true);
-      expect(sysMsg.content[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(sysMsg.content[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    });
+
+    it('injects 1h cache_control on the last tool definition', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: 'anthropic/claude-haiku-4.5',
+        body: {
+          messages: [{ role: 'user', content: 'Hi' }],
+          tools: [
+            { type: 'function', function: { name: 'a' } },
+            { type: 'function', function: { name: 'b' } },
+          ],
+        },
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(sentBody.tools[0].cache_control).toBeUndefined();
+      expect(sentBody.tools[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+    });
+
+    it('injects 5m cache_control on the last conversation message (history breakpoint)', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: 'anthropic/claude-haiku-4.5',
+        body: {
+          messages: [
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'first turn' },
+            { role: 'assistant', content: 'reply' },
+            { role: 'user', content: 'second turn' },
+          ],
+        },
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const lastMsg = sentBody.messages[sentBody.messages.length - 1];
+      expect(Array.isArray(lastMsg.content)).toBe(true);
+      const lastBlock = lastMsg.content[lastMsg.content.length - 1];
+      expect(lastBlock.cache_control).toEqual({ type: 'ephemeral' });
+      // History uses 5m, not 1h
+      expect(lastBlock.cache_control.ttl).toBeUndefined();
+    });
+
+    it('attaches 5m cache_control to a trailing tool message via string-to-array conversion', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: 'anthropic/claude-haiku-4.5',
+        body: {
+          messages: [
+            { role: 'user', content: 'use a tool' },
+            {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                { id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } },
+              ],
+            },
+            { role: 'tool', tool_call_id: 'c1', content: '{"result":"ok"}' },
+          ],
+        },
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const lastMsg = sentBody.messages[sentBody.messages.length - 1];
+      expect(lastMsg.role).toBe('tool');
+      expect(Array.isArray(lastMsg.content)).toBe(true);
+      expect(lastMsg.content[0]).toEqual({
+        type: 'text',
+        text: '{"result":"ok"}',
+        cache_control: { type: 'ephemeral' },
+      });
+    });
+
+    it('skips history cache_control when the trailing assistant message has only tool_calls', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: 'anthropic/claude-haiku-4.5',
+        body: {
+          messages: [
+            { role: 'user', content: 'do it' },
+            {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                { id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } },
+              ],
+            },
+          ],
+        },
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const lastMsg = sentBody.messages[sentBody.messages.length - 1];
+      expect(lastMsg.role).toBe('assistant');
+      // null content stays null — nowhere to attach cache_control
+      expect(lastMsg.content).toBeNull();
+    });
+
+    it('attaches history cache_control to the last block of an array-content user message', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: 'anthropic/claude-haiku-4.5',
+        body: {
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'first' },
+                { type: 'text', text: 'second' },
+              ],
+            },
+          ],
+        },
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const blocks = sentBody.messages[0].content;
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0].cache_control).toBeUndefined();
+      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' });
     });
 
     it('does not inject cache_control for non-anthropic models on openrouter', async () => {
