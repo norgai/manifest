@@ -14,6 +14,15 @@ export interface MessageTableProps {
   expandable?: boolean;
 }
 
+function isCached(item: MessageRow): boolean {
+  return (item.cache_read_tokens ?? 0) > 0 || (item.cache_creation_tokens ?? 0) > 0;
+}
+
+function rowClass(...names: (string | false | null | undefined)[]): string | undefined {
+  const filtered = names.filter(Boolean);
+  return filtered.length > 0 ? filtered.join(' ') : undefined;
+}
+
 function ChevronIcon(): JSX.Element {
   return (
     <svg
@@ -49,7 +58,13 @@ function ExpandableRow(props: {
 
   return (
     <>
-      <tr id={props.rowId} class={expanded() ? 'msg-row--expanded' : undefined}>
+      <tr
+        id={props.rowId}
+        class={rowClass(
+          expanded() && 'msg-row--expanded',
+          isCached(props.item) && 'msg-row--cached',
+        )}
+      >
         <For each={props.columns}>{(col) => renderCell(col, props.item, ctx)}</For>
         <td class="msg-detail__chevron-cell">
           <button
@@ -86,7 +101,7 @@ function PlainRow(props: {
     onFallbackErrorClick: props.tableProps.onFallbackErrorClick,
   };
   return (
-    <tr id={props.rowId}>
+    <tr id={props.rowId} class={rowClass(isCached(props.item) && 'msg-row--cached')}>
       <For each={props.columns}>{(col) => renderCell(col, props.item, ctx)}</For>
     </tr>
   );
