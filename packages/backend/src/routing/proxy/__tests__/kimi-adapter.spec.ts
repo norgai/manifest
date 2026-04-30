@@ -297,6 +297,17 @@ describe('Kimi Adapter', () => {
       expect(out!.endsWith('\n\n')).toBe(true);
     });
 
+    it('drops openrouter SSE keepalive comments (non-JSON data lines)', () => {
+      // OpenRouter emits `data: : OPENROUTER PROCESSING\n\n` keepalive
+      // markers that arrive at the transformer (after `data: ` is stripped)
+      // as `: OPENROUTER PROCESSING`. Forwarding them downstream causes the
+      // openclaw runtime SSE parser to throw on JSON.parse — drop instead.
+      const transform = createKimiStreamTransformer('moonshotai/kimi-k2.5', KNOWN_TOOLS);
+      expect(transform(': OPENROUTER PROCESSING')).toBeNull();
+      expect(transform(': keepalive')).toBeNull();
+      expect(transform('not json at all')).toBeNull();
+    });
+
     it('passes through role-only and finish_reason events unchanged', () => {
       const transform = createKimiStreamTransformer('moonshotai/kimi-k2.5', KNOWN_TOOLS);
       const role = JSON.stringify({

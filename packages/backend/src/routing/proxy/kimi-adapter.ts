@@ -596,13 +596,19 @@ export function createKimiStreamTransformer(
   return (chunk: string): string | null => {
     const trimmed = chunk.trim();
     if (!trimmed) return null;
+    // OpenRouter and similar gateways emit non-JSON SSE keepalive markers
+    // (e.g. `: OPENROUTER PROCESSING`) inside `data:` lines. Drop anything
+    // that isn't a JSON object — downstream consumers (openclaw runtime)
+    // assume every forwarded `data:` line is valid JSON and choke otherwise.
+    if (!trimmed.startsWith('{')) return null;
 
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      // Pass through unparseable events untouched.
-      return `data: ${trimmed}\n\n`;
+      // Malformed JSON — drop rather than forward and let the stream end
+      // gracefully. Real Kimi data is always well-formed JSON.
+      return null;
     }
 
     const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
