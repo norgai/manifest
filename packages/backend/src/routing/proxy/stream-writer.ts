@@ -7,6 +7,31 @@ export interface StreamUsage {
   cache_creation_tokens?: number;
 }
 
+/**
+ * Pull cache token counts out of an upstream `usage` object regardless of
+ * provider shape. Sources tried, in order:
+ * - `cache_read_tokens` / `cache_creation_tokens` — manifest-internal shape
+ *   (set by `fromAnthropicResponse` and the Anthropic stream transformer)
+ * - `prompt_tokens_details.cached_tokens` — OpenAI standard, used by
+ *   OpenRouter when proxying any provider including Anthropic
+ * - `cache_read_input_tokens` / `cache_creation_input_tokens` — Anthropic's
+ *   native field names, surfaced by some OpenRouter responses untouched
+ */
+export function pickCacheTokens(usage: Record<string, unknown>): {
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
+} {
+  const details = usage.prompt_tokens_details as Record<string, number> | undefined;
+  const read =
+    (usage.cache_read_tokens as number | undefined) ??
+    details?.cached_tokens ??
+    (usage.cache_read_input_tokens as number | undefined);
+  const creation =
+    (usage.cache_creation_tokens as number | undefined) ??
+    (usage.cache_creation_input_tokens as number | undefined);
+  return { cache_read_tokens: read, cache_creation_tokens: creation };
+}
+
 /** Extract usage data from an SSE-formatted text chunk (e.g. `data: {...}\n\n`). */
 export function extractUsageFromSse(sseText: string): StreamUsage | null {
   for (const line of sseText.split('\n')) {
@@ -20,8 +45,7 @@ export function extractUsageFromSse(sseText: string): StreamUsage | null {
         return {
           prompt_tokens: obj.usage.prompt_tokens,
           completion_tokens: obj.usage.completion_tokens ?? 0,
-          cache_read_tokens: obj.usage.cache_read_tokens,
-          cache_creation_tokens: obj.usage.cache_creation_tokens,
+          ...pickCacheTokens(obj.usage),
         };
       }
     } catch {
@@ -132,8 +156,7 @@ export async function pipeStream(
                 capturedUsage = {
                   prompt_tokens: obj.usage.prompt_tokens,
                   completion_tokens: obj.usage.completion_tokens ?? 0,
-                  cache_read_tokens: obj.usage.cache_read_tokens,
-                  cache_creation_tokens: obj.usage.cache_creation_tokens,
+                  ...pickCacheTokens(obj.usage),
                 };
               }
             } catch {

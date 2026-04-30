@@ -5,7 +5,7 @@ import { RoutingMeta, FailedFallback } from './proxy.service';
 import { ForwardResult } from './provider-client';
 import { ProxyMessageRecorder } from './proxy-message-recorder';
 import { ProviderClient } from './provider-client';
-import { initSseHeaders, pipeStream, StreamUsage } from './stream-writer';
+import { initSseHeaders, pickCacheTokens, pipeStream, StreamUsage } from './stream-writer';
 import { sanitizeProviderError } from './proxy-error-sanitizer';
 import type { ThoughtSignatureCache } from './thought-signature-cache';
 import type { ExtractedSignature } from './google-adapter';
@@ -257,8 +257,7 @@ export async function handleNonStreamResponse(
     streamUsage = {
       prompt_tokens: usage.prompt_tokens,
       completion_tokens: usage.completion_tokens ?? 0,
-      cache_read_tokens: usage.cache_read_tokens,
-      cache_creation_tokens: usage.cache_creation_tokens,
+      ...pickCacheTokens(usage),
     };
   }
 
