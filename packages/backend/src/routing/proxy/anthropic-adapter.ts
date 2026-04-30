@@ -154,6 +154,17 @@ export function toAnthropicRequest(
   }
 
   const converted = messages.map(convertMessage).filter(Boolean);
+
+  // Cache breakpoint on the conversation history so the rolling prefix
+  // (system + tools + prior turns) is reused on the next call. Anthropic
+  // supports up to 4 breakpoints; we use 3 (system, tools, history).
+  if (shouldCache && converted.length > 0) {
+    const last = converted[converted.length - 1];
+    if (last && last.content.length > 0) {
+      last.content[last.content.length - 1].cache_control = CACHE;
+    }
+  }
+
   const result: Record<string, unknown> = {
     messages: converted,
     max_tokens: (body.max_tokens as number) || 4096,
