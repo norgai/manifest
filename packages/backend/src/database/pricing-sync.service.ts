@@ -12,6 +12,8 @@ interface OpenRouterModel {
   pricing?: {
     prompt?: string;
     completion?: string;
+    input_cache_read?: string;
+    input_cache_write?: string;
   };
 }
 
@@ -22,6 +24,8 @@ interface OpenRouterResponse {
 export interface OpenRouterPricingEntry {
   input: number;
   output: number;
+  cacheRead?: number;
+  cacheWrite?: number;
   contextWindow?: number;
   displayName?: string;
 }
@@ -61,10 +65,17 @@ export class PricingSyncService implements OnModuleInit {
       if (!Number.isFinite(prompt) || !Number.isFinite(completion)) continue;
       if (prompt < 0 || completion < 0) continue;
 
+      const cacheReadRaw = model.pricing.input_cache_read;
+      const cacheWriteRaw = model.pricing.input_cache_write;
+      const cacheRead = cacheReadRaw != null ? Number(cacheReadRaw) : undefined;
+      const cacheWrite = cacheWriteRaw != null ? Number(cacheWriteRaw) : undefined;
+
       const displayName = this.extractDisplayName(model);
       const entry: OpenRouterPricingEntry = {
         input: prompt,
         output: completion,
+        cacheRead: Number.isFinite(cacheRead) && cacheRead! >= 0 ? cacheRead : undefined,
+        cacheWrite: Number.isFinite(cacheWrite) && cacheWrite! >= 0 ? cacheWrite : undefined,
         contextWindow: model.context_length ?? undefined,
         displayName: displayName || undefined,
       };

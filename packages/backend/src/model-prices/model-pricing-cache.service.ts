@@ -19,6 +19,10 @@ export interface PricingEntry {
   provider: string;
   input_price_per_token: number | null;
   output_price_per_token: number | null;
+  /** Per-token cost when reading from a previously-cached prefix (Anthropic prompt caching). */
+  cache_read_price_per_token?: number | null;
+  /** Per-token cost when writing a fresh cache prefix (Anthropic prompt caching). */
+  cache_creation_price_per_token?: number | null;
   display_name: string | null;
   /** True if confirmed via provider-native API, false if unverified, undefined if no data. */
   validated?: boolean;
@@ -65,6 +69,8 @@ export class ModelPricingCacheService implements OnApplicationBootstrap {
         provider,
         input_price_per_token: entry.input,
         output_price_per_token: entry.output,
+        cache_read_price_per_token: entry.cacheRead ?? null,
+        cache_creation_price_per_token: entry.cacheWrite ?? null,
         display_name: entry.displayName ?? null,
         validated: this.resolveValidated(providerId, canonical),
         source: 'openrouter',
@@ -163,6 +169,8 @@ export class ModelPricingCacheService implements OnApplicationBootstrap {
           provider: registryEntry.displayName,
           input_price_per_token: model.inputPricePerToken,
           output_price_per_token: model.outputPricePerToken,
+          cache_read_price_per_token: model.cacheReadPricePerToken ?? null,
+          cache_creation_price_per_token: model.cacheWritePricePerToken ?? null,
           display_name: model.name || null,
           validated: this.resolveValidatedForModelsDev(providerId, model.id),
           source: 'models.dev',

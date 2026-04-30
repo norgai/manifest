@@ -231,4 +231,103 @@ describe('computeTokenCost', () => {
       }),
     ).toBe(0);
   });
+
+  describe('cache token discounts', () => {
+    const haikuPricing: PricingEntry = {
+      model_name: 'anthropic/claude-haiku-4.5',
+      provider: 'OpenRouter',
+      input_price_per_token: 0.000001, // $1 / M
+      output_price_per_token: 0.000005, // $5 / M
+      cache_read_price_per_token: 0.0000001, // $0.10 / M (90% discount)
+      cache_creation_price_per_token: 0.00000125, // $1.25 / M (25% premium)
+      display_name: 'Claude Haiku 4.5',
+    };
+
+    it('discounts cache_read tokens at the cache_read rate', () => {
+      // 100k input total, 80k served from cache, 20k full-rate, 1k output
+      // = 20000 * $1/M + 80000 * $0.10/M + 1000 * $5/M
+      // = $0.020 + $0.008 + $0.005 = $0.033
+      const cost = computeTokenCost({
+        inputTokens: 100_000,
+        outputTokens: 1_000,
+        cacheReadTokens: 80_000,
+        cacheCreationTokens: 0,
+        model: 'anthropic/claude-haiku-4.5',
+        pricing: haikuPricing,
+      });
+      expect(cost).toBeCloseTo(0.033, 6);
+    });
+
+    it('charges cache_creation tokens at the cache_creation rate', () => {
+      // 100k input total, 90k freshly cached, 10k full-rate, 1k output
+      // = 10000 * $1/M + 90000 * $1.25/M + 1000 * $5/M
+      // = $0.010 + $0.1125 + $0.005 = $0.1275
+      const cost = computeTokenCost({
+        inputTokens: 100_000,
+        outputTokens: 1_000,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 90_000,
+        model: 'anthropic/claude-haiku-4.5',
+        pricing: haikuPricing,
+      });
+      expect(cost).toBeCloseTo(0.1275, 6);
+    });
+
+    it('reproduces the OpenRouter haiku-4.5 ~85%-cached scenario from prod', () => {
+      // 11:51 AM real call: 116,071 in, 424 out, OpenRouter charged $0.0267
+      // Estimating cache_read at ~98k (matches OpenRouter's bill within rounding)
+      const cost = computeTokenCost({
+        inputTokens: 116_071,
+        outputTokens: 424,
+        cacheReadTokens: 98_000,
+        cacheCreationTokens: 0,
+        model: 'anthropic/claude-haiku-4.5',
+        pricing: haikuPricing,
+      });
+      // (116071 - 98000) * 1e-6 + 98000 * 1e-7 + 424 * 5e-6 = 0.018071 + 0.0098 + 0.00212
+      expect(cost).toBeCloseTo(0.029991, 5);
+    });
+
+    it('falls back to full input rate when cache rates are absent', () => {
+      // Without cache_read_price_per_token, cached tokens are billed at full rate
+      // — preserves the pre-fix behaviour, just doesn't apply the discount
+      const noCacheRates: PricingEntry = { ...haikuPricing };
+      delete noCacheRates.cache_read_price_per_token;
+      delete noCacheRates.cache_creation_price_per_token;
+      const cost = computeTokenCost({
+        inputTokens: 100_000,
+        outputTokens: 0,
+        cacheReadTokens: 80_000,
+        model: 'anthropic/claude-haiku-4.5',
+        pricing: noCacheRates,
+      });
+      // Should bill full rate on all 100k input (cached portion not discounted)
+      expect(cost).toBeCloseTo(0.1, 6);
+    });
+
+    it('omitted cache token counts behave as zero (no discount)', () => {
+      // Existing callers that don't pass cache fields get the same result as before
+      const cost = computeTokenCost({
+        inputTokens: 100_000,
+        outputTokens: 0,
+        model: 'anthropic/claude-haiku-4.5',
+        pricing: haikuPricing,
+      });
+      expect(cost).toBeCloseTo(0.1, 6);
+    });
+
+    it('clamps full-rate input to zero when cache totals exceed inputTokens', () => {
+      // Defensive: if usage reports cache_read > input (shouldn't happen, but...)
+      // we shouldn't generate negative full-rate billing
+      const cost = computeTokenCost({
+        inputTokens: 50_000,
+        outputTokens: 0,
+        cacheReadTokens: 100_000, // larger than inputTokens
+        model: 'anthropic/claude-haiku-4.5',
+        pricing: haikuPricing,
+      });
+      // 0 full-rate + 100000 * $0.10/M = $0.010
+      expect(cost).toBeCloseTo(0.01, 6);
+    });
+  });
 });
