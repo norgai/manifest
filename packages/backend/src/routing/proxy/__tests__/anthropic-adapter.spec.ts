@@ -1206,7 +1206,7 @@ describe('Anthropic Adapter', () => {
       expect(blocks[0]).toEqual({
         type: 'text',
         text: 'You are helpful.',
-        cache_control: { type: 'ephemeral' },
+        cache_control: { type: 'ephemeral', ttl: '1h' },
       });
     });
 
@@ -1229,7 +1229,7 @@ describe('Anthropic Adapter', () => {
       const messages = body.messages as Array<Record<string, unknown>>;
       const blocks = messages[0].content as Array<Record<string, unknown>>;
       expect(blocks[0].cache_control).toBeUndefined();
-      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
     });
 
     it('injects cache_control on last tool definition', () => {
@@ -1245,7 +1245,7 @@ describe('Anthropic Adapter', () => {
 
       const tools = body.tools as Array<Record<string, unknown>>;
       expect(tools[0].cache_control).toBeUndefined();
-      expect(tools[1].cache_control).toEqual({ type: 'ephemeral' });
+      expect(tools[1].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
     });
 
     it('does nothing when no messages', () => {
@@ -1269,6 +1269,95 @@ describe('Anthropic Adapter', () => {
       // Should only modify the last system message (index 2)
       expect(typeof messages[0].content).toBe('string');
       expect(Array.isArray(messages[2].content)).toBe(true);
+    });
+
+    it('attaches 5m cache_control to the last conversation message (history breakpoint)', () => {
+      const body: Record<string, unknown> = {
+        messages: [
+          { role: 'system', content: 'You are helpful.' },
+          { role: 'user', content: 'first turn' },
+          { role: 'assistant', content: 'reply' },
+          { role: 'user', content: 'second turn' },
+        ],
+      };
+
+      injectOpenRouterCacheControl(body);
+
+      const messages = body.messages as Array<Record<string, unknown>>;
+      const lastMsg = messages[messages.length - 1];
+      const blocks = lastMsg.content as Array<Record<string, unknown>>;
+      expect(Array.isArray(blocks)).toBe(true);
+      // History breakpoint uses default 5m TTL — no `ttl` field
+      expect(blocks[blocks.length - 1].cache_control).toEqual({ type: 'ephemeral' });
+    });
+
+    it('places history breakpoint on a trailing tool message (string→array)', () => {
+      const body: Record<string, unknown> = {
+        messages: [
+          { role: 'user', content: 'use a tool' },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } }],
+          },
+          { role: 'tool', tool_call_id: 'c1', content: '{"result":"ok"}' },
+        ],
+      };
+
+      injectOpenRouterCacheControl(body);
+
+      const messages = body.messages as Array<Record<string, unknown>>;
+      const toolMsg = messages[2];
+      expect(Array.isArray(toolMsg.content)).toBe(true);
+      const blocks = toolMsg.content as Array<Record<string, unknown>>;
+      expect(blocks[0]).toEqual({
+        type: 'text',
+        text: '{"result":"ok"}',
+        cache_control: { type: 'ephemeral' },
+      });
+    });
+
+    it('skips history cache_control when trailing assistant has only tool_calls', () => {
+      const body: Record<string, unknown> = {
+        messages: [
+          { role: 'user', content: 'do it' },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } }],
+          },
+        ],
+      };
+
+      injectOpenRouterCacheControl(body);
+
+      const messages = body.messages as Array<Record<string, unknown>>;
+      const lastMsg = messages[messages.length - 1];
+      // null content remains null (nowhere to attach)
+      expect(lastMsg.content).toBeNull();
+    });
+
+    it('places history breakpoint on the last block of array-content user message', () => {
+      const body: Record<string, unknown> = {
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'first' },
+              { type: 'text', text: 'second' },
+            ],
+          },
+        ],
+      };
+
+      injectOpenRouterCacheControl(body);
+
+      const blocks = (body.messages as Array<Record<string, unknown>>)[0].content as Array<
+        Record<string, unknown>
+      >;
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0].cache_control).toBeUndefined();
+      expect(blocks[1].cache_control).toEqual({ type: 'ephemeral' });
     });
   });
 });
