@@ -545,6 +545,29 @@ describe('ProviderClient', () => {
       expect(sysMsg.content[0].cache_control).toEqual({ type: 'ephemeral' });
     });
 
+    it('injects cache_control for ~anthropic/ auto-router models on openrouter', async () => {
+      mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
+
+      const bodyWithSystem = {
+        messages: [
+          { role: 'system', content: 'You are helpful.' },
+          { role: 'user', content: 'Hi' },
+        ],
+      };
+      await client.forward({
+        provider: 'openrouter',
+        apiKey: 'sk-or',
+        model: '~anthropic/claude-haiku-latest',
+        body: bodyWithSystem,
+        stream: false,
+      });
+
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const sysMsg = sentBody.messages[0];
+      expect(Array.isArray(sysMsg.content)).toBe(true);
+      expect(sysMsg.content[0].cache_control).toEqual({ type: 'ephemeral' });
+    });
+
     it('does not inject cache_control for non-anthropic models on openrouter', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 

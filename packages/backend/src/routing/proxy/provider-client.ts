@@ -115,8 +115,10 @@ export class ProviderClient {
       const sanitized = sanitizeOpenAiBody(body, endpointKey, model);
       requestBody = { ...sanitized, model: bareModel, stream };
 
-      // Inject cache_control for OpenRouter requests targeting Anthropic models
-      if (endpointKey === 'openrouter' && model.startsWith('anthropic/')) {
+      // Inject cache_control for OpenRouter requests targeting Anthropic models.
+      // Strip the leading '~' that the auto-router prepends to routed model ids
+      // before matching, otherwise '~anthropic/...' silently skips injection.
+      if (endpointKey === 'openrouter' && model.replace(/^~/, '').startsWith('anthropic/')) {
         injectOpenRouterCacheControl(requestBody);
       }
     }
