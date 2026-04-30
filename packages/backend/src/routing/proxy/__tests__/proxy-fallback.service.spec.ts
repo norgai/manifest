@@ -75,6 +75,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.tryForwardToProvider({
@@ -161,6 +163,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.tryForwardToProvider({
@@ -188,6 +192,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.tryForwardToProvider({
@@ -219,6 +225,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.tryForwardToProvider({
@@ -246,6 +254,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.tryForwardToProvider({
@@ -279,6 +289,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.tryForwardToProvider({
@@ -312,6 +324,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: true,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
       pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
 
@@ -339,6 +353,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
       pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
 
@@ -400,6 +416,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.tryFallbacks(
@@ -429,6 +447,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: true,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
       pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
 
@@ -468,6 +488,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
       pricingCache.getByModel.mockReturnValue({ provider: 'OpenAI' } as never);
 
@@ -499,12 +521,16 @@ describe('ProxyFallbackService', () => {
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('error', { status: 401 }),
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
 
@@ -545,12 +571,16 @@ describe('ProxyFallbackService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
 
@@ -584,6 +614,8 @@ describe('ProxyFallbackService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.tryFallbacks(

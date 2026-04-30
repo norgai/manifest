@@ -165,6 +165,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const body = {
@@ -202,6 +204,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const body = {
@@ -240,6 +244,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const body = {
@@ -442,6 +448,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const result = await service.proxyRequest({
@@ -490,6 +498,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     await service.proxyRequest({
@@ -519,6 +529,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     await service.proxyRequest({
@@ -554,6 +566,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: true,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const result = await service.proxyRequest({
@@ -591,6 +605,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const bodyWithTools = {
@@ -644,6 +660,8 @@ describe('ProxyService', () => {
       isGoogle: false,
       isAnthropic: false,
       isChatGpt: false,
+      isKimi: false,
+      knownTools: [],
     });
 
     const abortController = new AbortController();
@@ -696,6 +714,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -726,6 +746,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -774,6 +796,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -816,6 +840,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -862,6 +888,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -901,6 +929,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -930,6 +960,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const bodyWithNullContent = {
@@ -963,6 +995,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -992,6 +1026,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
     };
 
@@ -1092,6 +1128,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
     };
 
@@ -1251,6 +1289,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const bodyWithMaxTokens = {
@@ -1293,6 +1333,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -1331,6 +1373,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const bodyWithAssistant = {
@@ -1369,6 +1413,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const bodyWithOnlySystem = {
@@ -1428,6 +1474,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -1471,6 +1519,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -1509,6 +1559,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -1545,6 +1597,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -1580,6 +1634,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -1619,6 +1675,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -1658,6 +1716,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -1723,6 +1783,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -1755,12 +1817,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['claude-sonnet-4'] },
@@ -1800,6 +1866,8 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['claude-sonnet-4'] },
@@ -1877,12 +1945,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: true,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'simple', fallback_models: ['deepseek-chat'] },
@@ -1941,6 +2013,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: null },
@@ -1974,12 +2048,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['unknown-model', 'claude-sonnet-4'] },
@@ -2019,12 +2097,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['claude-sonnet-4', 'deepseek-chat'] },
@@ -2068,18 +2150,24 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('rate limited', { status: 429 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['model-a', 'model-b'] },
@@ -2128,6 +2216,8 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockRejectedValueOnce(timeoutError)
         .mockResolvedValueOnce({
@@ -2135,6 +2225,8 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['model-a', 'model-b'] },
@@ -2177,18 +2269,24 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('upstream 424', { status: 424 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['model-a', 'model-b'] },
@@ -2224,6 +2322,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       const result = await service.proxyRequest({
@@ -2307,12 +2407,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['claude-sonnet-4'] },
@@ -2389,12 +2493,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['claude-sonnet-4.6'] },
@@ -2443,12 +2551,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'complex', fallback_models: ['gpt-4o'] },
@@ -2512,12 +2624,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: true,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: true,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['gemini-2.5-flash'] },
@@ -2573,12 +2689,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['claude-sonnet-4', 'deepseek-chat'] },
@@ -2628,12 +2748,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['niche-model-v1'] },
@@ -2680,12 +2804,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('{}', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'standard', fallback_models: ['custom:cp-abc/my-model'] },
@@ -2723,12 +2851,16 @@ describe('ProxyService', () => {
           isGoogle: true,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('gateway timeout', { status: 504 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
       tierService.getTiers.mockResolvedValue([
         { tier: 'simple', fallback_models: ['deepseek-chat'] },
@@ -2771,18 +2903,24 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('overloaded', { status: 503 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('server error', { status: 500 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
 
       tierService.getTiers.mockResolvedValue([
@@ -2822,6 +2960,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: true,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       tierService.getTiers.mockResolvedValue([
@@ -2835,6 +2975,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: true,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
       pricingCache.getByModel.mockReturnValue({ provider: 'Anthropic' } as never);
 
@@ -2877,6 +3019,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -2915,6 +3059,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -2944,6 +3090,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -2980,12 +3128,16 @@ describe('ProxyService', () => {
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         })
         .mockResolvedValueOnce({
           response: new Response('ok', { status: 200 }),
           isGoogle: false,
           isAnthropic: false,
           isChatGpt: false,
+          isKimi: false,
+          knownTools: [],
         });
 
       pricingCache.getByModel.mockReturnValue({
@@ -3038,6 +3190,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: true,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({
@@ -3095,6 +3249,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: false,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await svcWithCache.proxyRequest({
@@ -3141,6 +3297,8 @@ describe('ProxyService', () => {
         isGoogle: false,
         isAnthropic: true,
         isChatGpt: false,
+        isKimi: false,
+        knownTools: [],
       });
 
       await service.proxyRequest({

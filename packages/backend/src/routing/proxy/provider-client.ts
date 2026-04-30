@@ -14,6 +14,9 @@ import {
   convertAnthropicResponse as anthropicResponseConverter,
   convertAnthropicStreamChunk as anthropicStreamChunkConverter,
   createAnthropicTransformer,
+  convertKimiResponse as kimiResponseConverter,
+  createKimiTransformer,
+  extractKimiKnownTools,
 } from './provider-client-converters';
 import { ForwardOptions } from './proxy-types';
 
@@ -25,6 +28,28 @@ export interface ForwardResult {
   isAnthropic: boolean;
   /** True when we converted from ChatGPT Responses API format (needs SSE transform). */
   isChatGpt: boolean;
+  /**
+   * True when the response needs Kimi-style tool-call delimiter extraction.
+   * Kimi (Moonshot K2.5+) emits tool calls as `<|tool_call_*|>` delimiters
+   * inline in the OpenAI-format response content. The OpenClaw runtime's
+   * Kimi parser only fires on direct moonshot endpoints, so when traffic
+   * goes via OpenRouter the delimiters reach the agent as plain text and
+   * tool calls never execute. The Kimi adapter post-processes such responses.
+   */
+  isKimi: boolean;
+  /** Tool names from request body, used for un-mangling Kimi function tokens. */
+  knownTools: string[];
+}
+
+/**
+ * Decide whether a response from `endpointKey` running `model` needs the
+ * Kimi tool-call delimiter adapter. Conservative match — only Kimi/Moonshot
+ * model families known to emit `<|tool_call_*|>` envelopes.
+ */
+function needsKimiToolCallParsing(endpointKey: string, model: string): boolean {
+  if (endpointKey === 'moonshot') return true;
+  if (endpointKey !== 'openrouter') return false;
+  return /^moonshotai\//i.test(model) || /\bkimi-k\d/i.test(model);
 }
 
 const PROVIDER_TIMEOUT_MS = 180_000;
@@ -81,6 +106,8 @@ export class ProviderClient {
     const isGoogle = endpoint.format === 'google';
     const isAnthropic = endpoint.format === 'anthropic';
     const isChatGpt = endpoint.format === 'chatgpt';
+    const isKimi = needsKimiToolCallParsing(endpointKey, model);
+    const knownTools = isKimi ? extractKimiKnownTools(body) : [];
 
     const bareModel = stripModelPrefix(model, endpointKey);
     let url: string;
@@ -138,7 +165,24 @@ export class ProviderClient {
       signal: fetchSignal,
     });
 
-    return { response, isGoogle, isAnthropic, isChatGpt };
+    return { response, isGoogle, isAnthropic, isChatGpt, isKimi, knownTools };
+  }
+
+  /** Post-process an OpenAI response for Kimi `<|tool_call_*|>` delimiters. */
+  convertKimiResponse(
+    body: Record<string, unknown>,
+    model: string,
+    knownTools: string[],
+  ): Record<string, unknown> {
+    return kimiResponseConverter(body, model, knownTools);
+  }
+
+  /** Create a stateful Kimi stream transformer that extracts tool-call envelopes. */
+  createKimiStreamTransformer(
+    model: string,
+    knownTools: string[],
+  ): (chunk: string) => string | null {
+    return createKimiTransformer(model, knownTools);
   }
 
   /** Convert a ChatGPT Responses API response to OpenAI format. */

@@ -11,6 +11,11 @@ import {
   transformResponsesStreamChunk,
   collectChatGptSseResponse,
 } from './chatgpt-adapter';
+import {
+  fromKimiResponse,
+  createKimiStreamTransformer,
+  extractKnownToolNames,
+} from './kimi-adapter';
 
 /** Convert a ChatGPT Responses API response to OpenAI format. */
 export function convertChatGptResponse(
@@ -54,6 +59,36 @@ export function convertAnthropicStreamChunk(chunk: string, model: string): strin
 /** Create a stateful Anthropic stream transformer that tracks usage across events. */
 export function createAnthropicTransformer(model: string): (chunk: string) => string | null {
   return createAnthropicStreamTransformer(model);
+}
+
+/**
+ * Post-process an OpenAI-format response from a Kimi/Moonshot model to
+ * extract `<|tool_call_*|>` delimiter envelopes into proper `tool_calls[]`
+ * arrays. Idempotent for responses that don't contain delimiters.
+ */
+export function convertKimiResponse(
+  body: Record<string, unknown>,
+  model: string,
+  knownTools: string[],
+): Record<string, unknown> {
+  return fromKimiResponse(body, model, knownTools);
+}
+
+/** Create a stateful Kimi stream transformer that extracts tool-call envelopes. */
+export function createKimiTransformer(
+  model: string,
+  knownTools: string[],
+): (chunk: string) => string | null {
+  return createKimiStreamTransformer(model, knownTools);
+}
+
+/**
+ * Extract `tools[].function.name` from a Kimi-bound OpenAI request body.
+ * The Kimi adapter uses this list to un-mangle the model's stripped-
+ * delimiter function-name tokens.
+ */
+export function extractKimiKnownTools(body: Record<string, unknown>): string[] {
+  return extractKnownToolNames(body);
 }
 
 // Re-export adapter functions used by ProviderClient.forward()
