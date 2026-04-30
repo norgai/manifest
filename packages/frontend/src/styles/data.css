@@ -116,6 +116,19 @@
   animation: msg-highlight-flash 2s ease-out;
 }
 
+/* Highlight rows where the call hit Anthropic prompt cache (read or write). */
+.data-table tbody tr.msg-row--cached {
+  background: hsl(212 90% 56% / 0.08);
+}
+
+.data-table tbody tr.msg-row--cached:hover {
+  background: hsl(212 90% 56% / 0.14);
+}
+
+.data-table tbody tr.msg-row--cached.msg-row--expanded {
+  background: hsl(212 90% 56% / 0.12);
+}
+
 /* ── Status Badge Error Tooltip ──────────────────── */
 .status-badge-tooltip {
   position: relative;
